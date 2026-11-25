@@ -1,3 +1,4 @@
+import time
 import tkinter as tk
 from puzzle_generator import load_words, generate_puzzle
 
@@ -63,20 +64,63 @@ def show_rules(root):
     win.focus_set()
 
 
-def create_game(root, words_data, on_restart):
+def format_elapsed(seconds):
+    """Return a stopwatch reading as MM:SS."""
+    seconds = max(0, int(seconds))
+    minutes, secs = divmod(seconds, 60)
+    return f"{minutes:02d}:{secs:02d}"
+
+
+def create_game(root, words_data, on_restart, on_quit=None, output_fn=print):
     """Builds the actual game screen inside the given parent."""
     game_frame = tk.Frame(root)
 
     title = tk.Label(game_frame, text="5×5 Crossword Grid", font=("Arial", 16, "bold"))
     title.pack(pady=10)
 
-    # Guesses tracker
+    # Guesses tracker and solve timer
     guesses = [0]
-    guesses_label = tk.Label(game_frame, text="Guesses: 0", font=("Arial", 12))
-    guesses_label.pack(pady=(0, 5))
+    info_frame = tk.Frame(game_frame)
+    info_frame.pack(pady=(0, 5))
+    guesses_label = tk.Label(info_frame, text="Guesses: 0", font=("Arial", 12))
+    guesses_label.pack(side="left", padx=12)
+    timer_label = tk.Label(info_frame, text="Time: 00:00", font=("Arial", 12))
+    timer_label.pack(side="left", padx=12)
+
+    started_at = time.monotonic()
+    timer_job = [None]
+    timer_running = [True]
+    announced = [False]
+
+    def tick():
+        if not timer_running[0] or not game_frame.winfo_exists():
+            return
+        timer_label.config(text=f"Time: {format_elapsed(time.monotonic() - started_at)}")
+        timer_job[0] = game_frame.after(1000, tick)
+
+    def stop_timer():
+        if not timer_running[0]:
+            return time.monotonic() - started_at
+        timer_running[0] = False
+        if timer_job[0] is not None:
+            try:
+                game_frame.after_cancel(timer_job[0])
+            except tk.TclError:
+                pass
+            timer_job[0] = None
+        elapsed = time.monotonic() - started_at
+        if game_frame.winfo_exists():
+            timer_label.config(text=f"Time: {format_elapsed(elapsed)}")
+        return elapsed
 
     # Status / completion message
-    status_label = tk.Label(game_frame, text="", font=("Arial", 14, "bold"), fg="#2e7d32")
+    status_label = tk.Label(
+        game_frame,
+        text="",
+        font=("Arial", 14, "bold"),
+        fg="#2e7d32",
+        wraplength=460,
+    )
     status_label.pack(pady=(0, 10))
 
     grid_frame = tk.Frame(game_frame, padx=10, pady=10)
@@ -91,7 +135,12 @@ def create_game(root, words_data, on_restart):
     )
 
     def show_completion(message):
-        status_label.config(text=message, fg="#2e7d32")
+        elapsed = stop_timer()
+        text = f"{message} Time: {format_elapsed(elapsed)}"
+        status_label.config(text=text, fg="#2e7d32")
+        if not announced[0]:
+            announced[0] = True
+            output_fn(text)
         if not restart_btn.winfo_ismapped():
             restart_btn.pack(pady=(0, 8), before=grid_frame)
 
@@ -328,6 +377,16 @@ def create_game(root, words_data, on_restart):
     tk.Button(button_frame, text="Reveal All (Test)", command=reveal_all).pack(side="left", padx=5)
     tk.Button(button_frame, text="Rules", command=lambda: show_rules(root), font=("Arial", 12)).pack(side="left", padx=5)
 
+    def quit_to_menu():
+        elapsed = stop_timer()
+        if not announced[0]:
+            output_fn(f"Quit. Time: {format_elapsed(elapsed)}")
+        root.unbind("<Return>")
+        if on_quit is not None:
+            on_quit()
+
+    tk.Button(button_frame, text="Quit", command=quit_to_menu, font=("Arial", 12)).pack(side="left", padx=5)
+
     root.bind("<Return>", lambda e: check_letters())
 
     # QWERTY Tracker
@@ -355,6 +414,12 @@ def create_game(root, words_data, on_restart):
             lbl.pack(side="left", padx=2, pady=2)
             letter_labels[letter] = lbl
 
+    def stop_timer_when_closed(event):
+        if event.widget is game_frame:
+            stop_timer()
+
+    game_frame.bind("<Destroy>", stop_timer_when_closed)
+    tick()
     return game_frame
 
 
@@ -394,16 +459,23 @@ def create_start_screen(root, on_start):
 def main():
     root = tk.Tk()
     root.title("Word Game")
-    root.geometry("500x700")
+    root.geometry("520x780")
     root.resizable(False, False)
 
     current_game = {"frame": None}
+
+    def show_start():
+        if current_game["frame"] is not None:
+            current_game["frame"].destroy()
+            current_game["frame"] = None
+        root.unbind("<Return>")
+        start_frame.pack(fill="both", expand=True)
 
     def show_game():
         start_frame.pack_forget()
         if current_game["frame"] is not None:
             current_game["frame"].destroy()
-        current_game["frame"] = create_game(root, make_puzzle(), show_game)
+        current_game["frame"] = create_game(root, make_puzzle(), show_game, on_quit=show_start)
         current_game["frame"].pack(fill="both", expand=True)
 
     start_frame = create_start_screen(root, show_game)

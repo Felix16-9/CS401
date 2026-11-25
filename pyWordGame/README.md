@@ -13,7 +13,8 @@ A Python + Tkinter word-guessing game where the player solves a small crossword-
    - **Yellow** — letter exists somewhere in the puzzle, but wrong position
    - **Red** — letter is not used in any word in this puzzle
 6. The QWERTY keyboard at the bottom updates with the same colors so you can track which letters you’ve tried.
-7. Solve all three words to complete the puzzle. A message appears showing how many guesses it took.
+7. Solve all three words to complete the puzzle. A message appears showing how many guesses it took and the elapsed time. The same time is printed in the terminal.
+8. Click **Quit** to leave the round and return to the main menu. The terminal prints how long that round lasted.
 
 ## Features Implemented
 
@@ -23,6 +24,8 @@ A Python + Tkinter word-guessing game where the player solves a small crossword-
 - Color-coded letter feedback (green / yellow / red)
 - Live QWERTY keyboard tracker
 - Guess counter
+- Solve timer, shown on the board and printed when the puzzle is finished or quit
+- Quit button that returns to the main menu
 - In-window “Game Complete” message
 - Reveal All button (for testing)
 
